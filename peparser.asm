@@ -94,8 +94,14 @@ include peparser.inc
 	hint 						db 		10, 13, 9, 9, "Hint: 0x", 0
 	function_name 				db 		9, "Name: ", 0
 ;Exports
-	numberOfFunctions 			db 		9, "number of functions: 0x", 0
-	nName 						db 		10, 13, 9, "nName: ", 0
+	numberOfFunctions 			db 		10, 13, 9, "NumberOfFunctions: 0x", 0
+	nName 						db 		9, "nName: ", 0
+	nBase						db		10, 13, 9, "nBase: 0x", 0
+	numberOfNames				db		10, 13, 9, "numberOfNames: 0x", 0
+	exportedFunctions			db		10, 13, 9, "Function list:", 10, 13, 0
+	RVA							db		10, 13, 9, "RVA: 0x", 0
+	ordinal						db		9, "Ordinal: 0x", 0
+	funcName					db		9, "Name: ", 0
 ;Resources
 	resource_name 				db 		9, "resource name: ", 0
 	
@@ -121,6 +127,11 @@ include peparser.inc
 	importsRVA 					dd 		?
 ;vars for Export Table
 	exportsRVA 					dd 		?
+	exportedNamesOffset			dd		?
+	exportedFunctionsOffset		dd		?
+	exportedOrdinalsOffset		dd		?
+	numberOfNamesValue				dd		?
+	nBaseValue					dd		?
 	
 .code
 start:
@@ -279,10 +290,11 @@ start:
 	call print_f
 	
 	;TO BE IMPLEMENTED CHECK OF THE IMAGE_DATA_DIRECTORY
-	;mov edx, sizeOfOptionalHeader
-	;sub edx, [edi].NumberOfRvaAndSizes + 4
-	;cmp edx, 0
-	;je sections_start
+	;Even so, in the case where the size of the OH is 0, it won't work well.  In that case I think you must trust the value in NumberOfRvaAndSizes, as long as it is less than 0x10.
+	mov edx, sizeOfOptionalHeader
+	sub edx, IMAGE_OPTIONAL_HEADER.NumberOfRvaAndSizes + 4
+	cmp edx, 0
+	je sections_start
 	
 	;IMAGE DATA DIRECTORY
 	add edi, 60h ;address of the Image Data Directory Start
@@ -576,20 +588,98 @@ start:
 			mov edi, exportsRVA
 			call RVAtoOffset
 			mov edi, eax
+			add edi, pMapping
 			assume edi:ptr IMAGE_EXPORT_DIRECTORY
+			;nName
 			push edi
 			mov edi, [edi].nName
 			call RVAtoOffset
+			add eax, pMapping
 			pop edi
 			push offset nName
 			call print
-			mov edx, eax
+			push eax
+			call print
+			;nBase
+			push offset nBase
+			call print
+			mov edx, [edi].nBase
+			mov nBaseValue, edx
 			call print_f
+			;numberOfFunctions
 			push offset numberOfFunctions
 			call print
 			mov edx, [edi].NumberOfFunctions
 			call print_f
-			
+			;NumberOfNames
+			push offset numberOfNames
+			call print
+			mov edx, [edi].NumberOfNames
+			mov numberOfNamesValue, edx
+			call print_f
+			;exported functions
+			push offset exportedFunctions
+			call print
+			;check for ordinal exports
+			mov edx, [edi].NumberOfFunctions
+			cmp edx, [edi].NumberOfNames
+			;je noOrdinalExports
+			;ordinal exports
+			push edi
+			mov edi, [edi].AddressOfNameOrdinals
+			call RVAtoOffset
+			add eax, pMapping
+			mov exportedOrdinalsOffset, eax
+			pop edi
+			noOrdinalExports:
+				;AddressOfFunctions
+				push edi
+				mov edi, [edi].AddressOfFunctions
+				call RVAtoOffset
+				add eax, pMapping
+				mov exportedFunctionsOffset, eax
+				pop edi
+				;AddressOfNames
+				push edi
+				mov edi, [edi].AddressOfNames
+				call RVAtoOffset
+				add eax, pMapping
+				mov exportedNamesOffset, eax
+				pop edi
+				next_export:
+					cmp numberOfNamesValue, 0
+					jle resources
+					mov eax, exportedOrdinalsOffset
+					mov dx, [eax]
+					movzx edx, dx 
+					mov ecx, edx
+					shl edx, 2
+					add edx, exportedFunctionsOffset
+					add ecx, nBaseValue
+					;RVA
+					push offset RVA
+					call print
+					mov edx, dword ptr [edx]
+					call print_f
+					;Ordinal
+					push offset ordinal
+					call print
+					mov edx, ecx
+					call print_f
+					;name
+					push offset funcName
+					call print
+					mov edx, dword ptr exportedNamesOffset
+					mov edi, dword ptr [edx]
+					call RVAtoOffset
+					add eax, pMapping
+					push eax
+					call print
+					;increment indexes
+					dec numberOfNamesValue
+					add exportedNamesOffset, 4 ;point to the next name in the array
+					add exportedOrdinalsOffset, 2
+					jmp next_export
 			
 	;Resources
 	resources:
