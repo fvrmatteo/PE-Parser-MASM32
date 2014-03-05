@@ -291,6 +291,7 @@ start:
 	
 	;TO BE IMPLEMENTED CHECK OF THE IMAGE_DATA_DIRECTORY
 	;Even so, in the case where the size of the OH is 0, it won't work well.  In that case I think you must trust the value in NumberOfRvaAndSizes, as long as it is less than 0x10.
+	;I lost the one born under the Saturn's Symbol, I really miss you.
 	mov edx, sizeOfOptionalHeader
 	sub edx, IMAGE_OPTIONAL_HEADER.NumberOfRvaAndSizes + 4
 	cmp edx, 0
