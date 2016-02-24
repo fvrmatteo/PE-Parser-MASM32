@@ -3,7 +3,7 @@ PE-Parser-MASM32
 
 A PE32/PE32+ parser written in MASM32
 
-STATUS: the Teacher said "Goodbye"; project suspended till her return, maybe forever.
+STATUS: paused.
 
 TO-DO:
   - add support for PE32+
